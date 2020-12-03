@@ -30,6 +30,3 @@ const Error = ({ message }: { message: string | null }) => {
 };
 
 export default Error;
-
-// El monto no puede ser mayor a S/. 19,600
-// El monto no puede ser menor a S/. 1,500

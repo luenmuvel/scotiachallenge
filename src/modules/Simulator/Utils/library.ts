@@ -46,23 +46,56 @@ const formatTea = (tea: number) => {
   return parseFloat(tea.toFixed(2));
 };
 
-const formatAmount = (amount: string) => {
+const stopTimeout = (interval: NodeJS.Timeout) => {
+  clearTimeout(interval);
+};
+
+const removeChars = (currency: string, amount: string) => {
+  let newAmount = amount;
+  if (amount) {
+    currency = currencySymbol(currency);
+    if (amount.indexOf(currency) !== -1) {
+      newAmount = amount
+        .replace(currency, "")
+        .replace(/,/gi, "")
+        .replace(/\s/gi, "");
+    }
+  } else {
+    newAmount = "";
+  }
+  return newAmount;
+};
+
+const formatAmount = (currency: string, amount: string) => {
   const integerAmount = getIntegerAmount(amount);
   var len = integerAmount.length;
   if (len > 3) {
     const amountString = String(amount);
     switch (len) {
       case 4:
-        return insertAt(1, amountString, ",");
+        return `${currencySymbol(currency)} ${insertAt(1, amountString, ",")}`;
         break;
       case 5:
-        return insertAt(2, amountString, ",");
+        return `${currencySymbol(currency)} ${insertAt(2, amountString, ",")}`;
         break;
       default:
         return amountString;
     }
   }
   return amount;
+};
+
+/**
+ * @description Método que da formato a la moneda con la que esté trabajando el usuario
+ * @param {string} type Es un parámetro que puede contener 'PEN' o 'USD'.
+ * @returns {string}
+ */
+const currencySymbol = (type: string) => {
+  const symbols: { [key: string]: string } = {
+    PEN: "S/.",
+    USD: "$",
+  };
+  return symbols[type];
 };
 
 const getIntegerAmount = (amount: string) => {
@@ -106,9 +139,9 @@ const noPoints = (amount: string) => {
  * El 'key' es usado para concatenar con el 'temporalAmount'
  * @returns {void}
  */
-const addKey = (key: string, amount: string, setAmount: Function) => {
-  const tempAmount = amount ? amount + key : key;
-  setAmount(tempAmount);
+const addKey = (key: string, amount: string) => {
+  const newAmount = amount === null ? key : amount + key;
+  return newAmount;
 };
 
 /**
@@ -118,23 +151,21 @@ const addKey = (key: string, amount: string, setAmount: Function) => {
  * El parámetro "e" contiene la tecla pulsada, además de los eventos propios del 'keydown'
  * @returns {void}
  */
-const addTemporalAmount = (
-  e: KeyboardEvent,
-  amount: string,
-  setAmount: Function
-) => {
+const addTemporalAmount = (e: KeyboardEvent, amount: string) => {
+  let newAmount = amount;
   /**
    * Si la key es punto y no hay puntos en el monto temporal
    */
   if (e.key === "." && noPoints(amount)) {
-    addKey(e.key, amount, setAmount);
+    newAmount = addKey(e.key, amount);
   } else if (!admitedKeys.includes(e.key)) {
     /**
      * Si la tecla es numérica o punto y
      * Si solo aún no hay puntos en el monto
      */
-    addKey(e.key, amount, setAmount);
+    newAmount = addKey(e.key, amount);
   }
+  return newAmount;
 };
 
 /**
@@ -142,31 +173,22 @@ const addTemporalAmount = (
  * @param {Object} e Contiene la tecla pulsada por el usuario
  * @returns {string}
  */
-const handleAdmitedKey = (
-  e: KeyboardEvent,
-  amount: string,
-  setAmount: Function
-) => {
-  // handleShortCuts(e);
+const handleAdmitedKey = (e: KeyboardEvent, amount: string) => {
   switch (e.key) {
     case "Backspace":
-      let temporal;
+      let newAmount;
       // @ts-ignore
       if (e.ctrlKey) {
-        temporal = "";
+        newAmount = "";
       } else {
-        temporal = removeLast(amount);
+        newAmount = removeLast(amount);
       }
-      setAmount(temporal);
-      return temporal;
+      return newAmount;
       break;
     default:
-      return e.key;
+      return amount;
   }
 };
-
-// const handleShortCuts = (e: KeyboardEvent) => {
-// }
 
 /**
  * @description Permite conocer si el monto ingresado tiene algún punto decimal.
@@ -180,18 +202,39 @@ const hasDecimalPart = (amount: string) => {
  * @description Este método es usado para validar que hayan decimales en el monto y en caso haya más de un punto decimal, lo quita.
  * @returns {boolean}
  */
-const moreThanOneDot = (amount: string, setAmount: Function) => {
+const moreThanOneDot = (amount: string) => {
   let excededLimit = false;
-  console.log("moreThanOneDot", amount);
   if (hasDecimalPart(amount)) {
     const parts = amount.split(".");
-    if (parts[1].length > 2) {
+    // Si tenemos más de un punto
+    if (parts.length > 2) {
       excededLimit = true;
-      const temporalAmount = removeLast(amount);
-      setAmount(temporalAmount);
     }
   }
   return excededLimit;
+};
+
+const onlyTwoDecimals = (e: KeyboardEvent, amount: string) => {
+  if (hasDecimalPart(amount)) {
+    const amountParts = amount.split(".");
+    if (amountParts[1].length > 2) {
+      amount = removeLast(amount);
+      e.preventDefault();
+    }
+  }
+  return amount;
+};
+
+const handleDots = (e: KeyboardEvent, amount: string) => {
+  // verifica que no hayan más de un punto decimal. Si hay lo remueve
+  const isValid = moreThanOneDot(amount);
+  if (isValid) {
+    amount = removeLast(amount);
+    e.preventDefault();
+  }
+
+  amount = onlyTwoDecimals(e, amount);
+  return amount;
 };
 
 /**
@@ -199,23 +242,12 @@ const moreThanOneDot = (amount: string, setAmount: Function) => {
  * @param {Object} e Contiene la pulsación de la tecla por parte del usuario.
  * @returns {void}
  */
-const handleValidOperation = (
-  e: KeyboardEvent,
-  amount: string,
-  setAmount: Function
-) => {
-  // validar que no hayan más de 1 punto decimal. Sino bloquearlo.
-  // manejar correctamente las teclas admitidas que no sean numéricas.
-  // añadir el monto temporal
-  // manejar errores (no bloqueante)
-  addTemporalAmount(e, amount, setAmount);
-  handleAdmitedKey(e, amount, setAmount);
-  // handleAmountErrors();
-  // // @ts-ignore
-  const isValid = moreThanOneDot(amount, setAmount);
-  // if (isValid) {
-  //   e.preventDefault();
-  // }
+const handleValidOperation = (e: KeyboardEvent, amount: string) => {
+  let newAmount;
+  newAmount = addTemporalAmount(e, amount);
+  newAmount = handleAdmitedKey(e, newAmount);
+  newAmount = handleDots(e, newAmount);
+  return newAmount;
 };
 
 export {
@@ -227,4 +259,6 @@ export {
   isKeyNotValid,
   handleValidOperation,
   formatAmount,
+  removeChars,
+  stopTimeout,
 };

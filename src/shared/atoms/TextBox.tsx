@@ -21,13 +21,30 @@ const Container = styled.div`
   }
 `;
 
-const TextBox = ({ handleKeyDown }: { handleKeyDown: Function }) => {
+const TextBox = ({
+  textValue,
+  handleKeyDown,
+  handleBlur,
+  handleChange,
+  handleFocus,
+}: {
+  textValue: string;
+  handleKeyDown: Function;
+  handleBlur: Function;
+  handleChange: Function;
+  handleFocus: Function;
+}) => {
+  const value = textValue ? textValue : "";
   return (
     <Container>
       <input
         type="tel"
+        value={value}
         placeholder="Ingrese un monto"
         onKeyDown={(e) => handleKeyDown(e)}
+        onBlur={(e) => handleBlur(e)}
+        onChange={() => handleChange()}
+        onFocus={(e) => handleFocus(e)}
       />
     </Container>
   );
